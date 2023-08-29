@@ -1,0 +1,217 @@
+# CODE FOR THE COMPUTER VISION PROJECT 
+
+!pip install kaggle
+
+configuring the path for kaggle.json file
+
+ !mkdir -p ~/.kaggle
+!cp kaggle.json ~/.kaggle/
+!chmod 600 ~/.kaggle/kaggle.json
+
+!kaggle competitions download -c cifar-10
+
+linux command to print the files in current directory
+
+!ls
+
+from zipfile import ZipFile
+dataset = '/content/cifar-10.zip'
+
+with ZipFile(dataset,'r') as zip:
+  zip.extractall()
+  print('The dataset is extracted')
+
+
+!ls
+
+!pip install py7zr
+
+import py7zr
+archive = py7zr.SevenZipFile('/content/train.7z', mode='r')
+archive.extractall()     #archive.extractall(path='/content/Training Data')
+archive.close()
+
+!ls
+
+importing libraries
+
+import os
+import numpy as np
+import pandas as pd
+from PIL import Image
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+from sklearn.model_selection import train_test_split
+
+filenames = os.listdir('/content/train')
+
+print(filenames[0:5])
+print(filenames[-5:])
+
+labels processing
+
+labels_df = pd.read_csv('/content/trainLabels.csv')
+
+labels_df.shape
+
+labels_df.head()
+
+labels_df[labels_df['id']== 7796]
+
+
+labels_df.head(10)
+
+checking for the distribution of classes
+
+labels_df['label'].value_counts()
+
+labels_dictionary = {'airplane' : 0, 'automobile' : 1, 'bird' : 2,'cat':3, 'deer' : 4,'dog':5,'frog':6, 'horse':7,'ship':8,'truck':9}
+
+labels = [labels_dictionary[i] for i in labels_df['label']]
+
+converted the classes into numerics
+
+print(labels[0:5])
+print(labels[-5:])
+
+#displaying sample image
+import cv2
+from google.colab.patches import cv2_imshow
+img = cv2.imread('/content/train/45888.png')
+cv2_imshow(img)
+
+creating a separate list for the 'id' column
+
+id_list = list(labels_df['id'])
+print(id_list[0:5])
+print(id_list[-5:])
+
+image processing
+
+#converting images into numpy arrays
+train_data_folder = '/content/train/'
+
+#converting the 50k images into 50k numpy arrays into a list
+data = []
+for id in id_list:
+  image = Image.open(train_data_folder + str(id)+ '.png')
+  image = np.array(image)
+  data.append(image)
+
+len(data) #checking if everything is loaded
+
+data[0].shape
+
+data[0]
+
+#converting images list and labels list to numpy arrays
+X = np.array(data)
+Y = np.array(labels)
+
+type(X)
+
+print(X.shape)
+print(Y.shape)
+
+#performing train test split
+X_train, X_test , Y_train, Y_test = train_test_split(X,Y,test_size = 0.2, random_state =2)
+
+
+
+print(X.shape , X_train.shape, X_test.shape)
+
+#scaling the data from 0-255 to 0-1
+
+X_train_scaled = X_train/255
+X_test_scaled = X_test/255
+
+
+X_train_scaled
+
+building the NN
+
+import tensorflow as tf
+from tensorflow import keras
+
+
+num_of_classes = 10
+
+#setting up layers of neural network
+model= keras.Sequential([
+    keras.layers.Flatten(input_shape=(32,32,3)),
+    keras.layers.Dense(64, activation='relu'),
+    keras.layers.Dense(num_of_classes,activation='softmax')
+])
+
+#compiling the NN
+model.compile(optimizer = 'adam',
+              loss='sparse_categorical_crossentropy',
+              metrics=['acc'])
+
+#training the NN
+model.fit(X_train_scaled ,Y_train,validation_split=0.1, epochs=10)
+
+**ResNet50**
+
+#ABOUT RESNET 50- A transfer learning model , which uses a pre trained dataset to train on a custom dataset , helps to increase accuracy
+
+from tensorflow.keras import Sequential,models,layers
+from tensorflow.keras.layers import Dense , Dropout, Flatten
+from tensorflow.keras.layers import BatchNormalization
+from tensorflow.keras.models import load_model
+from tensorflow.keras.models import Model
+from tensorflow.keras.applications.resnet50 import ResNet50
+from tensorflow.keras import optimizers
+
+convolutional_base = ResNet50(weights = 'imagenet',include_top=False,input_shape=(256,256,3))
+convolutional_base.summary()
+
+#adding our layers to the cnn base
+model = models.Sequential()
+model.add(layers.UpSampling2D((2,2))) #we upscale the image 3 times
+model.add(layers.UpSampling2D((2,2)))# first time 64,64 2nd time 128,128
+model.add(layers.UpSampling2D((2,2)))#3rd time 256,256
+model.add(convolutional_base)
+model.add(layers.Flatten())  #flatten is used to convert the matrix to vector
+model.add(layers.BatchNormalization())
+model.add(layers.Dense(128,activation='relu'))
+model.add(layers.Dropout(0.5))
+model.add(layers.BatchNormalization())
+model.add(layers.Dense(64,activation='relu'))
+model.add(layers.Dropout(0.5))
+model.add(layers.BatchNormalization()) #normalizing the scaled img values after processing
+model.add(layers.Dense(num_of_classes, activation='softmax')) #softmax for multi class classification
+
+
+
+
+model.compile(optimizer=optimizers.RMSprop(learning_rate=2e-5), loss= 'sparse_categorical_crossentropy', metrics=['acc'])
+
+#
+history=model.fit(X_train_scaled, Y_train, validation_split=0.1, epochs=10)
+
+
+
+h= history
+
+#plotting loss value
+plt.plot(h.history['loss'],label='train loss')
+plt.plot(h.history['val_loss'],label = 'validation loss')
+plt.show()
+
+#plotting accuracy values
+plt.plot(h.history['acc'],label='train accuracy')
+plt.plot(h.history['val_acc'],label='validation accuracy')
+plt.legend()
+plt.show()
+
+loss_train = history.history['acc']
+loss_val = history.history['val_acc']
+epochs = range(1,11)
+plt.plot(epochs, loss_train, 'g', label='Training accuracy')
+plt.plot(epochs, loss_val, 'b', label='validation accuracy')
+plt.title('Training and Validation accuracy')
+plt.xlabel('Epochs') 
+plt.ylabel('Accuracy')
+plt.legend() 
+plt.show()
